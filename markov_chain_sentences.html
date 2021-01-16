@@ -3,6 +3,10 @@
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 </head>
 <body>
+
+<p>
+Text from which to build a transition matrix from. The default text comes from Hans Christian Andersen's <i>The Dryad</i>, from <a href="http://hca.gilead.org.il/dryad.html">http://hca.gilead.org.il/dryad.html</a>. Future todos include calculating the probability of each sentence.
+</p>
 <textarea id="textInput" rows="30" cols="150">
 We are travelling to Paris to the Exhibition.
 
@@ -331,36 +335,56 @@ Poor Dryad! Only a dew-drop, only a tear, poured upon the earth, and vanished aw
 <div id="results">
 </div>
 <script>
+/**
+ * Set event handlers on document load
+ */
 $(document).ready(function() {
 	//Hide wait
 	$("#submit").click(generateTransitionMatrix);
 });
 
+/**
+ * Create a transition matrix
+ */
 function generateTransitionMatrix() {
 	//Grab text from field
 	let globalText = document.getElementById("textInput").value;
 	
+	//Build an nxn matrix
 	globalText = cleanText(globalText);
 	let uniqArray = gatherUniqueWords(globalText);
 	let transitionMatrix = calculateWordTransitions(globalText, uniqArray);
 	
-	//Not a ture transition matrix at this pointer
+	//Not a true transition matrix at this pointer
 	let sentence = generateRandomSentence(transitionMatrix, uniqArray);
+	sentence = sentence[0].toUpperCase() + sentence.slice(1);
 	
-	$("#results").text($("#results").text() + " " + sentence);
-	//console.log(sentence);
+	$("#results").html($("#results").html() + " " + sentence + "<br/>");
+	return;
 }
 
+/**
+ * Filter common grammatical markers from text that may interfere with building the transition matrix
+ *
+ * @param text {String} The full text that needs to be filtered before processed into a transition matrix
+ * @returns {String} Text with problematic markers either removed or replaced
+ */
 function cleanText(text) {
 	//Replace a series of characters
 	text = text.replace(/\/|\>|\||\#|\"|\(|\)|\-|\;|\,|\*|\+|\&|\r|\n/g,'');	//Remove internal punction and new lines
 	text = text.replace(/\!|\?/g,'.');											//Change terminal punctuation
-	text = text.replaceAll("."," . ");											//Add Make periods register on the string split
+	text = text.replaceAll("."," . ");											//Make periods register on the string split
 	text = text.toLowerCase();
 
 	return text;
 }
 
+/**
+ * Creates a set of unique words within the text
+ *
+ * @param text {String} Text from which a transition matrix will be built
+ * @returns {Array} Set of unique words from the list
+ */
 function gatherUniqueWords(text) {
 	let uniqueArr = [...new Set(text.split (" ").filter(i => i))];
 	uniqueArr.push("*");	//Sentence starts
@@ -368,6 +392,13 @@ function gatherUniqueWords(text) {
 	return uniqueArr;
 }
 
+/**
+ * Counts the transitions between each pair of words in the text
+ *
+ * @param text {String} Text from which a transition matrix will be built
+ * @param arr {Array} Set of unique words from the text
+ * @returns {Array} An nxn non-symmetric matrix counting the transitions between words Matrix is ordered the same as param Arr.
+ */
 function calculateWordTransitions(text, arr) {
 	//Create an NxN matrix
 	let transMatrix = matrix(arr.length, arr.length);
@@ -397,11 +428,25 @@ function calculateWordTransitions(text, arr) {
 	return transMatrix;
 }
 
-//https://stackoverflow.com/questions/39242313/how-to-create-nxn-matrix-array-in-javascript Pranav C Balan
+/**
+ * Creates an MxN array filled with zeros to serve as a matrix
+ * Function from Pranav C Balan's post, https://stackoverflow.com/questions/39242313/how-to-create-nxn-matrix-array-in-javascript 
+ *
+ * @param m {int} first dimension
+ * @param n {int} second dimension
+ * @returns {Array} MxN sized matrix
+ */
 function matrix(m, n) {
 	return Array.from({length: m}, () => new Array(n).fill(0));
 }
 
+/**
+ * Creates a sentence based on the probability of a word's occurance in a transition matrix
+ *
+ * @param transMatrix {Array} The probability of transition between each word
+ * @param wordList{Array} The words, in the same order as the transition matrix
+ * @returns {String} A 'sentence' derived from the transition matrix
+ */
 function generateRandomSentence(transMatrix, wordList) {
 	let words = [];
 	
@@ -421,7 +466,14 @@ function generateRandomSentence(transMatrix, wordList) {
 	return sentence;
 }
 
-//Likely a more efficient way to do this, current method should be slow. Filter + Map? Or fill? x^2 run time per array
+/**
+ * Selects next word by randomly drawing from a bag of words, weighted by probabiltiy of occurence
+ * Likely a more efficient way to do this, current method should be slow. Filter + Map? Or fill? x^2 run time per array
+ *
+ * @param weightVector {Array} A vector with probabilities of transition
+ * @param wordList{Array} The words, in the same order as the transition vector
+ * @returns {String} A word randomly drawn from a weighted array
+ */
 function findNextWord(weightVector, wordList)
 {
 	//Generate weighted list
