@@ -1,0 +1,180 @@
+<html>
+	<head>
+		<title>2D L-system test</title>
+	</head>
+<body>
+<p>
+Experimental implementation of a lindenmayer system for fractals. Stochastic grammar is a future consideration, as well as a 3Dvariation. Additional information can be found at <a href="https://en.wikipedia.org/wiki/L-system">https://en.wikipedia.org/wiki/L-system</a>.
+</p>
+<canvas id="mainCanvas" width="800" height="800" style="border:1px solid #000000;">
+Canvas failure
+</canvas>
+<br/>
+<form>
+<label>Axiom</label><br/>
+<input type="text" id="txtAxiom" value="XY" /><br/>
+<label>Rules</label><br/>
+<textarea id="txtRules">
+X:X+YF+
+Y:-FX-Y
+</textarea><br/>
+<label>Length</label><br/>
+<input type="text" id="txtLength" value="5" /><br/>
+<label>Angle</label><br/>
+<input type="text" id="txtAngle" value="90" /><br/>
+<label>Iterations</label><br/>
+<input type="text" id="txtIterations" value="10" /><br/>
+</form>
+<button type="button" id="btnRender">Render</button>
+
+<script>
+//https://en.wikipedia.org/wiki/L-system#:~:text=An%20L%2Dsystem%20consists%20of,generated%20strings%20into%20geometric%20structures.
+//Globals - to be abstracted out later
+var angle = 90;
+var turtle = {x: 300, y: 300, r: 0};
+var length = 5;		//Dist between 
+var rules = [];		// array for rules
+var axiom = "XY";
+var maxIter = 9;
+var rules = {
+	'X': 'X+YF+', 	// first rule
+	'Y': '-FX-Y' 	// second rule
+}; 
+
+//Grab the canvas element and contenxt
+var canvas = document.getElementById("mainCanvas");
+var ctx = canvas.getContext("2d");
+	
+//Add listeners
+document.getElementById("btnRender").addEventListener("click", requestRender);
+
+//Render function
+function requestRender() {
+	//Clear canvas and reset turtle position
+	ctx.clearRect(0, 0, 800, 800);
+	ctx.beginPath();
+	turtle = {x: 300, y: 300, r: 0};
+	
+	//Pull form element values
+	axiom = document.getElementById("txtAxiom").value;
+	length = parseInt(document.getElementById("txtLength").value);
+	angle = parseInt(document.getElementById("txtAngle").value);
+	maxIter = parseInt(document.getElementById("txtIterations").value);
+	
+	//Translate rules; no error handeling, so do not mess up your input
+	rules = [];	//reset
+	ruleText = document.getElementById("txtRules").value;
+	ruleList = ruleText.split("\n");
+	for (let i = 0; i < ruleList.length; i++) {
+		rule = ruleList[i].split(':');
+		rules[rule[0]] = rule[1];
+	}
+
+	//Depth first iteration;	F = Forward, - turn left 25, + turn right 25, X no change
+	nextSentence = axiom;
+	for (let i = 0; i < maxIter; i++) {
+		nextSentence = lindenmayer(nextSentence);
+		//setTimeout(function () {}, 1000); //Yield control back to browser, update every 10th of a second
+	}
+	
+	return;
+}
+
+//Form full sentence before drawing, else wasting time to refraw  i iterations
+//Resursively handle draw and computation in same go, depth before breadth
+function lindenmayer(sentence)
+{
+	//Prepare for next iteration simulatanously
+	var nextSentence = "";
+
+	//Prepare color spectrum
+	var spectrumSteps = 24;
+	var spectrum = createSpectrum(spectrumSteps);
+
+	//Iterate over string
+	for (var i = 0; i < sentence.length; i++) {
+		var current = sentence.charAt(i);
+		switch(current) {
+		  case 'F':
+			c = Math.round(spectrumSteps*i/sentence.length);
+			newTurtle = advanceTurtle(turtle);
+			ctx.beginPath();
+			ctx.moveTo(turtle.x, turtle.y);
+			ctx.lineTo(newTurtle.x, newTurtle.y);
+			ctx.strokeStyle = spectrum[c];
+			ctx.stroke();
+			turtle = newTurtle;
+			break;
+		  case '+':
+			turtle.r += angle;
+			break;
+		case '-':10
+			turtle.r -= angle;
+			break;
+		}
+		
+		//Check if name in rules, else just copy
+		if(rules.hasOwnProperty(current)) {
+			nextSentence += rules[current];
+		} else {
+			nextSentence += current;
+		}
+	}
+
+	return nextSentence;
+}
+
+//Calculate new turtle positon
+function advanceTurtle(turtle) {
+	var radians = turtle.r * (Math.PI/180);
+	var x1 = turtle.x + length * Math.cos(radians);
+	var y1 = turtle.y + length * Math.sin(radians);
+	
+	return({x: x1, y: y1, r: turtle.r});
+}
+
+
+//GitHub ibrechin/jsspectrum.js
+hslToRgb = function(_h, s, l) {	
+	var h = Math.min(_h, 359)/60;
+	
+	var c = (1-Math.abs((2*l)-1))*s;
+	var x = c*(1-Math.abs((h % 2)-1));
+	var m = l - (0.5*c);
+	
+	var r = m, g = m, b = m;
+	
+	if (h < 1) {
+		r += c, g = +x, b += 0;
+	} else if (h < 2) {
+		r += x, g += c, b += 0;
+	} else if (h < 3) {
+		r += 0, g += c, b += x;
+	} else if (h < 4) {
+		r += 0, g += x, b += c;
+	} else if (h < 5) {
+		r += x, g += 0, b += c;
+	} else if (h < 6) {
+		r += c, g += 0, b += x;
+	} else {
+		r = 0, g = 0, b = 0;
+	}
+	
+	return '#' + Math.floor(r*255).toString(16) + Math.floor(g*255).toString(16) + Math.floor(b*255).toString(16);
+}
+
+createSpectrum = function(length) {
+	var colors = [];
+	// 270 because we don't want the spectrum to circle back
+	var step = 270/length;
+	for (var i = 1; i <= length; i++) {
+		var color = hslToRgb((i)*step, 0.8, 0.5);
+		colors.push(color);
+	}
+	
+	return colors;
+}
+
+</script>
+</body>
+</html>
