@@ -1,0 +1,655 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <title>Web Tree Classifier</title>
+    <link href="http://prrsv.vdl.iastate.edu/css/base.css?v=1.4.67" rel="stylesheet">
+    <link href="http://netdna.bootstrapcdn.com/font-awesome/4.6.1/css/font-awesome.css" media="all" rel="stylesheet">
+    <link href="http://prrsv.vdl.iastate.edu/css/jquery-ui.css" media="all" rel="stylesheet">
+    <link href="http://prrsv.vdl.iastate.edu/css/phylotree.css" media="all" rel="stylesheet">
+    <style>
+        /* Upload CSS */
+        input[type="file"] {
+            display: none;
+        }
+
+        .lds-ring {
+            display: inline-block;
+            position: relative;
+            width: 40px;
+            height: 40px;
+        }
+
+            .lds-ring div {
+                box-sizing: border-box;
+                display: block;
+                position: absolute;
+                width: 32px;
+                height: 32px;
+                margin: 4px;
+                border: 4px solid #ff0;
+                border-radius: 50%;
+                animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+                border-color: #f00 transparent transparent transparent;
+            }
+
+                .lds-ring div:nth-child(1) {
+                    animation-delay: -0.45s;
+                }
+
+                .lds-ring div:nth-child(2) {
+                    animation-delay: -0.3s;
+                }
+
+                .lds-ring div:nth-child(3) {
+                    animation-delay: -0.15s;
+                }
+
+        @keyframes lds-ring {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .collapsible {
+            background-color: #777;
+            color: white;
+            cursor: pointer;
+            margin-bottom: 2px;
+            padding: 10px;
+            width: 100%;
+            border: 1px solid black;
+            text-align: left;
+            outline: none;
+            font-size: 14px;
+        }
+
+            .active,
+            .collapsible:hover {
+                background-color: #555;
+            }
+
+            .collapsible:after {
+                content: '+';
+                color: white;
+                font-weight: bold;
+                float: right;
+                margin-left: 5px;
+            }
+
+        .active:after {
+            content: '-';
+        }
+
+        /*.content {
+            padding: 0 12px;
+            height: 0;
+            overflow: hidden;
+            transition: height 0.2s ease-out;
+            background-color: #f1f1f1;
+        }*/
+
+        .tooltip {
+            position: relative;
+            /* display: inline-block; */
+            border-bottom: 1px dotted black;
+        }
+
+            .tooltip .tooltiptext {
+                visibility: hidden;
+                width: max-content;
+                font-size: 10px;
+                background-color: purple;
+                color: #fff;
+                text-align: left;
+                border-radius: 6px;
+                padding: 5px;
+                margin-left: 5px;
+                /* Position the tooltip */
+                position: absolute;
+                z-index: 1;
+                top: -20px;
+                /* left: 110%; */
+                /* Fade in tooltip - takes 1 second to go from 0% to 100% opac: */
+                opacity: 0;
+                transition: opacity 1s;
+            }
+
+                .tooltip .tooltiptext::after {
+                    content: "";
+                    position: absolute;
+                    top: 50%;
+                    right: 100%;
+                    margin-top: -5px;
+                    border-width: 5px;
+                    border-style: solid;
+                    border-color: transparent purple transparent transparent;
+                }
+
+            .tooltip:hover .tooltiptext {
+                visibility: visible;
+                opacity: 1;
+            }
+
+        /*#wrapper {
+            width: 100%;
+            overflow: hidden;
+        }*/
+
+        .chartChild {
+            width: 50%;
+            float: left;
+        }
+
+        .wrapper {
+            border: 1px solid #000;
+            width: 1200px;
+            margin: auto;
+            margin-top: 0px;
+            background-color: #FFF;
+        }
+
+        .header {
+            padding: 0px;
+            background-color: #ccc;
+        }
+
+        .content {
+            padding-left: 20px;
+            padding-right: 20px;
+            line-height: 2em;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        body {
+            font-family: 'Lucida Sans', Geneva, Verdana, sans-serif;
+            background-color: #757575;
+        }
+    </style>
+    <script src="http://prrsv.vdl.iastate.edu/js/jquery.min.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/jquery-ui.min.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/dataloader.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/prrsv-vaccine-strains.js"></script>
+    <script src="uniq_prrsv2.aln_out.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/align.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/d3.v3.min.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/nj.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/patristic/main.js"></script>
+    <script src="http://prrsv.vdl.iastate.edu/js/phylotree.js"></script>
+    <script src="http://netdna.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+    <script>
+        /* html5shiv */
+        (function () {
+            var t = 'abbr article aside audio bdi canvas data datalist details figcaption figure footer header hgroup mark meter nav output progress section summary time video'.split(' ');
+            for (var i = t.length; i--;) document.createElement(t[i])
+        })();
+    </script>
+</head>
+<div class="wrapper">
+    <div class="header">
+        <img alt="Københavns Universitet" src="img/logo.png" ">
+    </div>
+    <div class="content">
+        <h2 id="chartTitle">Tree Classification Tool</h2>
+
+        <p>
+            The sequence identity tool uses pattern matching to find similarity with vaccines and RFLP values from the present nucleotide sequences in the ISU VDL data.<br\>
+                Neighbour joining algorithm is used to identify the closest matching lineage for the nucleotide sequences and is depicted as a phylogenetic tree.
+        </p>
+
+        <form id="target">
+<textarea rows="16" cols="100" id="sequences" placeholder="Paste sequences (fasta/plain text) in the following format:\n\n>defline1\nATCAAATTTTCCCCGGGG\n\n>defline2\nAAATTTTTCCCGGGCTGA">
+</textarea><br />
+            <label class="wd-Button--default">
+                <input id="fileUploader" type="file" name="filename">
+                <i class="fa fa-cloud-upload"></i>Upload
+            </label>
+            <a class="wd-Button" id="submit">Graft</a>
+            <a href="javascript:;" class="wd-Button--default" id="download">Download Results</a>
+
+        </form>
+
+        <br />
+        <!-- <div class="wd-Alert" id="waitUpload">
+        Please wait, Sequence File is being uploaded...
+        </div>
+
+        <div class="wd-Alert" id="waitUploadWarning">
+        Unable to upload Sequences from File!!!
+        </div>
+
+        <div class="wd-Alert" id="wait">
+        Please wait, Sequence Identification in progress...
+        </div>
+
+        <div class="lds-ring" id="spinner"><div></div><div></div><div></div><div></div></div>
+        -->
+
+        <div id="results" style="width: 60%;"></div>
+        </div>
+    </div>
+
+        <script>
+            //Set loads
+            window.onload = function () { pageLoad() };
+            window.onscroll = function () { scrollFunction() };
+
+            function pageLoad() {
+                let textAreas = document.getElementsByTagName('textarea');
+
+                Array.prototype.forEach.call(textAreas, function (elem) {
+                    elem.placeholder = elem.placeholder.replace(/\\n/g, '\n');
+                });
+
+                //Hide sections
+                $("#wait").hide();
+                $("#waitUpload").hide();
+                $("#waitUploadWarning").hide();
+                $("#wrapper").hide();
+                $("#download").hide();
+                $("#spinner").hide();
+
+                //Add control event listeners
+                document.getElementById('submit').addEventListener("click", processSequences);
+                document.getElementById('fileUploader').addEventListener('change', addDataToTextArea, false);
+                return;
+            }
+
+            /**
+             * Copies data from file into the textAreas
+             * Also adds a forced pause
+             */
+            function addDataToTextArea() {
+                var fileName = this.files[0]; //document.getElementById("fileUploader").files[0]; //This
+                //var fileLimit = 1024*1024*5; // 5Mb
+
+                if (!fileName) {
+                    $("#results").text("Failed to load file!");
+                } /*else if (fileName.size > fileLimit) {
+                $("#results").text("File size too big to process");
+            }*/
+                else {
+                    var reader = new FileReader();
+                    reader.onload = function (loadedEvent) {
+                        document.getElementById("sequences").value = loadedEvent.target.result;
+                    }
+                    reader.onerror = function () {
+                        $("#results").text("Process aborted, the file cannot be uploaded");
+                    }
+                    reader.readAsText(fileName);
+                }
+                return;
+            }
+
+            /**
+             * Main routine function for converting string to Fasta and generating trees
+             */
+            function processSequences() {
+                //Hide form, show wait
+                $("#wait").slideDown("slow");
+                $("#wrapper").show();
+                $("#spinner").show();
+                $("#sequences").prop("disabled", true);
+
+                //Disconnect button
+                $("#submit").off("click");
+                $("#results").html("");
+                $("#download").off("click");
+                $("#download").hide();
+
+                //Convert to fasta array
+                let seqList = fastaToArray(document.getElementById("sequences").value);
+
+                //Align sequences
+                sequenceProcess(seqList);
+
+                //Generate tables
+                //Assign to table
+                return;
+            }
+
+            /**
+             * Converts a FASTA formatted string into an array
+             * Returns array
+             *Cnsider reprocessing as multiple regex steps, remove whitespace if not > on line, then double match?
+             */
+            function fastaToArray(fastaString) {
+                //Get text field information
+                if (!fastaString) {
+                    console.log("Empty query submitted");
+                    return "";
+                }
+
+                //If single sequence, prepend a def-line
+                if (fastaString.indexOf('>') == -1) {
+                    fastaString = ">sequence\n".concat(fastaString);
+                }
+
+                //Split into individual sequences
+                let splitString = fastaString.split("\n");
+                let j = -1;
+                let fastaList = new Array();
+                for (let i = 0; i < splitString.length; i++) {
+                    //Check if the line is a header
+                    if (splitString[i][0] == '>') {
+                        j++;
+                        fastaList[j] = [splitString[i], ''];
+                    }
+                    else {
+                        if (j != -1) {
+                            fastaList[j][1] += splitString[i];
+                        }
+                    }
+                }
+
+                //Return array
+                return fastaList;
+            }
+
+
+            function sequenceProcess(fastaList) {
+                //Solve reference alignments
+                baseString = lineage_sequences[0];
+                let cutLength = baseString.replace(/\-/g, '').length;
+                let fastaResult = new Array();
+
+                //Build collapsibles
+                addNavigationElements();
+
+                //Align all sequence to first reference
+                for (let i = 0; i < fastaList.length; i++) {
+                    let sequence = fastaList[i][1].toUpperCase();
+                    let aligned = needlemanWunsch(baseString, fastaList[i][1].substr(0, cutLength), 1, -1, -2);
+                    let realignedSequence = dropInsertions(aligned[0], aligned[1]);
+
+                    //Build the div row
+                    generateResultDiv(fastaList[i][0]); //Send name only
+
+                    //Build tree
+                    buildTree([fastaList[i][0], realignedSequence[0]]);
+
+                    //Add click events
+                    let treeLinks = document.querySelectorAll('.treeLink');
+                    treeLinks.forEach(link => {
+                        link.addEventListener('click', updateTree);
+                    });
+
+                    // Find all elements that have collapsible class
+                    var coll = document.getElementsByClassName('collapsible');
+                    // Toggle the following div element to expand or collapse
+                    for (let j = 0; j < coll.length; j++) {
+                        coll[j].addEventListener('click', function () {
+                            this.classList.toggle('active');
+                            var content = this.nextElementSibling;
+                            if (content.style.height) {
+                                content.style.height = null;
+                                $('.show_hide').val($('.collapsible').length == $('.collapsible.active').length ? 'Collapse All' : 'Expand All');
+                            } else {
+                                content.style.height = 'auto';//content.scrollHeight + 'px';
+                                $('.show_hide').val($('.collapsible').length == $('.collapsible.active').length ? 'Collapse All' : 'Expand All');
+                            }
+                        });
+                    }
+
+                    $('.show_hide').on('click', function () {
+                        //var maxDivHeight = $('div.content')[0].scrollHeight + 'px';
+                        if ($(this).val() == 'Expand All') {
+                            $('.collapsible').addClass('active');
+                            $('div.content').css('height', 'auto');
+                        }
+                        else {
+                            $('.collapsible').removeClass('active');
+                            $('div.content').css('height', '');
+                        }
+                        // Change the button text on expansion nd collapse
+                        $(this).val($(this).val() == 'Expand All' ? 'Collapse All' : 'Expand All');
+                    });
+
+                    //Create new div to hold italic
+
+                    //Count all non-standard characters. Consider benchmarking for faster solution.
+                    /*fastaResult[i][4] = sequence.length - (sequence.match(/(A|G|C|T)/g) || []).length;
+                    const regexp = /[^ATCG]/g;
+                    const ambiguityMatch = sequence.matchAll(regexp);
+                    fastaResult[i][5] = "";
+                    fastaResult[i][12] = false;
+                    var ambiguityIndex = 0;
+
+                    for (const match of ambiguityMatch) {
+                            fastaResult[i][5] += sequence.substring(ambiguityIndex, match.index);
+                            if(match[0] == " ") {
+                                    fastaResult[i][5] += "<b><span style='color:blue'>[SPACE]</span></b>";
+                                    // space character
+                                    fastaResult[i][12] = true;
+                                    fastaResult[i][13] = "<span style='color:#F0C1C1'>Remove space character for correct result</span>";
+                            } else {
+                                    fastaResult[i][5] += "<b><span style='color:blue'>[" + match[0] + "]</span></b>";
+                            }
+                            ambiguityIndex = match.index + 1;
+                    }
+
+                    if(ambiguityIndex < sequence.length - 1) {
+                            fastaResult[i][5] += sequence.substring(ambiguityIndex, sequence.length);
+                    }
+                    fastaResult[i][5] += "</p>";
+
+                    //Calculate vaccine similarities
+                    for (var j = 0; j < vaccines.length; j++) {
+                            var alignment = needlemanWunsch(vaccines[j],fastaList[i][1].substr(0,cutLength),1,-1,-2);
+                            identity = ((1 - hammingDistance(alignment[0],alignment[1])/alignment[0].length) * 100).toFixed(1);
+                            fastaResult[i][j+6] = identity;
+                    }*/
+                }
+
+                return;
+            }
+
+            function addNavigationElements() {
+                document.getElementById("results").innerHTML += `
+            <input type='button' id='top' value='Top' onclick='goToTop();' class='wd-Button--small wd-Button--danger' style='float: right; margin-left: 60%; position: fixed; visibility: hidden;'></input>
+            <input type='button' value='Expand All' class='show_hide wd-Button--block' style='margin: 0 0 5px 0;'></input>
+            <input type='button' id='top' value='Top' onclick='goToTop();' class='wd-Button--small wd-Button--danger' style='float: right; margin-left: 25px; position: fixed; visibility: hidden;'></input>
+            `;
+            }
+
+            /**
+             *Build table on the fly, so arrays are not stored in memory
+             */
+            function generateResultDiv(taxaName) {
+                //Generate clean id taxa name
+                let cleanName = taxaName.replace(/\/|\>|\||\#|\ |\"|\(|\)|\-|\.|\:|\,|\+|\&/g, '');
+
+                //Generate base table
+                var resultsTable = `
+                <button class="collapsible">${taxaName}</button>
+                <div class="content">
+                  <table class="wd-Table--striped wd-Table--hover">
+                    <tbody>
+                      <tr>
+                        <th>Nearest Taxa</th>
+                      </tr>
+                      <tr>
+                        <td><a href="javascript:;" id="${cleanName}" tree=""></a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div>
+                    <svg style="display:none;" id="${cleanName}_tree"></svg>
+                  </div>
+                </div>
+            `;
+
+                document.getElementById("results").innerHTML += resultsTable;
+                return;
+            }
+
+            /**
+             * Build tree
+             * alignedseq = {"taxa name","seq"}
+             */
+            function buildTree(alignedSeq) {
+                //Save taxa for tree purposes before modifying the name
+                var taxon = alignedSeq[0].replace(/\/|\>|\||\#|\ |\"|\(|\)|\-|\.|\:|\,|\+|\&/g, '');
+                alignedSeq[0] = alignedSeq[0].replace(/\/|\>|\||\#|\ |\"|\(|\)|\-|\.|\:|\,|\+|\&/g, '') + "|query";
+
+                //Create matrices, calculate distance matrix, then build tree
+                treeTaxa = [...lineage_taxa, alignedSeq[0]];
+                treeSeq = [...lineage_sequences, alignedSeq[1].toLowerCase()];  // ENSURE CASES MATCH AND U TO T FOR FUNCTIONALITY....
+                console.log(treeSeq);
+                let distMat = calculateDiffMatrix(treeSeq);
+                let distMatDeepClone = JSON.parse(JSON.stringify(distMat)); //Deep clone the object so the calculation does not need to be run twice
+                let treeNewick = patristic.parseMatrix(distMat, treeTaxa);
+                distMat = distMatDeepClone;
+
+                //Calculate patristic, estimate lineage
+                var patMat = treeNewick.toMatrix();
+                let seqIndex = patMat.ids.indexOf(alignedSeq[0]);
+                let taxonDistances = patMat.matrix[seqIndex];
+                taxonDistances[seqIndex] = Math.max(...taxonDistances);
+                let nearest = patMat.ids[taxonDistances.indexOf(Math.min(...taxonDistances))];
+                console.log(taxonDistances.indexOf(Math.min(...taxonDistances)));
+                console.log(nearest);
+
+                //Classification rejection code, modify??
+                //Calculate nearest neighbor
+                /*leafLengths = [];
+                _.each(treeNewick.getLeaves(), function(taxa, key) {
+                        leafLengths.push(taxa.length);
+                        if(taxa.id.substring(taxa.id.length - 6, taxa.id.length) == "|query") {
+                                queryLength = parseFloat(leafLengths.pop());
+                        }
+                });
+
+
+                var meanLength = leafLengths.reduce((a, b) => a + b, 0) / leafLengths.length;
+                var stdev = getStandardDeviation(leafLengths);
+
+                //console.log(meanLength + 3 * stdev);
+                //console.log(queryLength);
+                if(queryLength >= meanLength + 3 * stdev) {
+                        console.log("Failed to classify");
+                        nearestSplit = "Unclassified";
+                }*/
+
+                //Update lineage Result to populate csv results
+                //lineageResult.push(nearestSplit);
+
+                //Add tree  and class data to link
+                document.getElementById(taxon).setAttribute("tree", treeNewick.toNewick());
+                document.getElementById(taxon).setAttribute("class", "treeLink");
+
+                //Patristric distance and identity distance are not always the same. Also, the tree rearranges the indices, so extracting the equiv distance is different
+                let alignIdentity = ((1 - (distMat[treeTaxa.length - 1][lineage_taxa.indexOf(nearest)])) * 100).toFixed(2);
+                console.log(alignIdentity);
+
+                //$(taxon).text(nearest + " (" + alignIdentity + "%) " + " (Tree)");
+                document.getElementById(taxon).text = nearest + " (" + alignIdentity + "%) " + " (Tree)";
+
+                return;
+            }
+
+            /*NOTES
+                    leafs have a count depth of 1
+                    internal nodes have no name
+                    parents are referencable, but no easy way to find nearest leaf
+            */
+            /**
+             * Grab tree data from element and render it, either on screen or in a new window
+             */
+            function updateTree(e) {
+                let treeData = $(e.target).attr("tree");
+                let svgTree = document.getElementById(e.target.id + "_tree");
+                var height = 600, width = 800;
+                tree = d3.layout.phylotree()
+                    .options({
+                        'left-right-spacing': 'fit-to-size',
+                        'top-bottom-spacing': 'fit-to-size',
+                        'selectable': true,
+                        'collapsible': false,
+                        'transitions': false,
+                        'show-scale': true
+                    })
+                    .size([height, width])
+                    .style_nodes(nodeStyler)
+                    .node_circle_size(0)
+                    .svg(d3.select(svgTree));
+                tree(d3.layout.newick_parser(treeData));
+                tree.layout();
+
+                //Find node to reroot too
+                _.each(tree.get_nodes(), function (value, key) {
+                    if (value.name == "Ingelvac-ATP_DQ988080") {
+                        rerootNode = value;
+                    }
+                });
+                //Reroot tree
+                tree.reroot(rerootNode);
+                sort_nodes(false);
+
+                $(svgTree).toggle('slow');
+
+                return;
+            }
+
+            /**
+                * Determines the node style
+                *
+                * @param {Object} element - This parameter is the element that contains the node
+                * @param {Object} data - This parameter consists of an object of a tree node
+                */
+            function nodeStyler(element, data) {
+                try {
+                    if (data.name.includes("|query")) {
+                        element.style("fill", "#0000FF");
+                    }
+                }
+                catch (e) {
+                }
+            }
+
+            //Sort tree, taken from phylotree.js example
+            function sort_nodes(asc) {
+                tree.traverse_and_compute(function (n) {
+                    var d = 1;
+                    if (n.children && n.children.length) {
+                        d += d3.max(n.children, function (d) { return d["count_depth"]; });
+                    }
+                    n["count_depth"] = d;
+                });
+                tree.resort_children(function (a, b) {
+                    return (a["count_depth"] - b["count_depth"]) * (asc ? 1 : -1);
+                });
+            }
+
+            // Logic to show and hide back to top button
+            function scrollFunction() {
+                if (document.getElementById('top')) {
+                    if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+                        document.getElementById('top').style.visibility = 'visible';
+                    } else {
+                        document.getElementById('top').style.visibility = 'hidden';
+                    }
+                }
+            }
+
+            // Go back to top of page
+            function goToTop() {
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+
+        </script>
+        </body>
+</html>

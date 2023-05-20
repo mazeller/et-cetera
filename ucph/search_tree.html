@@ -1,0 +1,510 @@
+<!-- credit D3 and phylotree.js-->
+
+<html>
+<head>
+    <title>PRRS Virus Tree View</title>
+
+    <style>
+        .wrapper {
+            border: 1px solid #000;
+            width: 1200px;
+            margin: auto;
+            margin-top: 0px;
+            background-color: #FFF;
+        }
+
+        .header {
+            padding: 0px;
+            background-color: #ccc;
+        }
+
+        .content {
+            padding-left: 20px;
+            padding-right: 20px;
+            line-height: 2em;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        body {
+            font-family: 'Lucida Sans', Geneva, Verdana, sans-serif;
+            background-color: #757575;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 6px 12px;
+            font-size: 14px;
+            font-weight: normal;
+            line-height: 1.42857143;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: middle;
+            touch-action: manipulation;
+            cursor: pointer;
+            user-select: none;
+            background-image: none;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-shadow: none;
+        }
+
+        .flex-container {
+            display: flex;
+        }
+
+        .flex-child {
+            flex: 1;
+        }
+
+        div.tooltip {
+            position: absolute;
+            text-align: center;
+            width: 60px;
+            height: 28px;
+            padding: 2px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+
+        div.phyloinfo {
+            opacity: 80%;
+            background-color: #333333;
+            color: #EEEEEE;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+
+        /* Style the tab */
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+        }
+
+            /* Style the buttons inside the tab */
+            .tab button {
+                background-color: inherit;
+                float: left;
+                border: none;
+                outline: none;
+                cursor: pointer;
+                padding: 14px 16px;
+                transition: 0.3s;
+                font-size: 17px;
+            }
+
+                /* Change background color of buttons on hover */
+                .tab button:hover {
+                    background-color: #ddd;
+                }
+
+                /* Create an active/current tablink class */
+                .tab button.active {
+                    background-color: #ccc;
+                }
+
+        /* Style the tab content */
+        .tabcontent {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+        .hilitebold {
+            stroke: #000000;
+        }
+        .hilitevax {
+            stroke: #FF0000;
+        }
+    </style>
+    <link href="css/phylotree.css" media="all" rel="stylesheet">
+
+    <script src="js/jquery.min.js"></script>
+    <script src="js/d3.v6.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore-min.js"></script>
+    <script src="js/new_phylotree.js"></script>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="header">
+            <img alt="Københavns Universitet" src="img/logo.png"">
+        </div>
+        <div class="content">
+            <div class="tab">
+                <button class="tablinks active" onclick="openTree(event, 'PRRSV1')">PRRSV1</button>
+                <button class="tablinks" onclick="openTree(event, 'PRRSV2')">PRRSV2</button>
+            </div><br />
+            <div class="flex-container">
+                <div id="tree_display" class="flex-child"></div>
+                <div id="compartment-legend" class="flex-child"></div>
+            </div>
+            <br />
+
+            <form id="target">
+                <label>Search</label>
+                <input type="text" id="querystring" placeholder="Search" />
+                <!-- <a class="button" id="submit">Search</a> -->
+                <a class="button" id="submitx" onclick="zoomIn()">Zoom in</a>
+                <a class="button" id="submitx" onclick="zoomOut()">Zoom out</a>
+                <a class="button" id="submitx" onclick="resetZoom()">Reset zoom</a>
+                <input type="checkbox" id="tips" name="tips"><label>align tips</label>
+            </form>
+        </div>
+    </div>
+
+    <!-- acknowledge D3 and Phylotree.js -->
+    <script>
+        //Globals
+        var clades = new Set();
+        var color_scale = d3.scaleSequential(d3.interpolateRainbow).domain([1, 5]);
+        var zoom = d3.zoom()
+            .on('zoom', handleZoom)
+            .scaleExtent([0.5, 5]);
+
+        //Page load
+        $(document).ready(function () {
+            // Generate Phylogenetic Tree 
+            buildTree("tree/prrsv1.nwk");
+
+            //Connect button to highlight
+            $("#submit").on("click", zoomTaxa);
+            $("#querystring").on("input", highlightTaxa);
+        });
+
+        //highlight taxa
+        function highlightTaxa() {
+            //Remove prior selections
+            d3.selectAll(".hilite").remove();
+            d3.selectAll(".node").classed("hilitebold", false); // Remove hilitebold class
+
+            //Grab substring of interest
+            let substr = document.getElementById('querystring').value;
+
+            if (substr.trim() == "") {
+                d3.selectAll(".hilite").remove();
+                //d3.selectAll(".node").style("stroke", null);
+                return;
+            }
+
+            //Capture last node
+            var bboxPos;
+
+            //Search all nodes for substringstring
+            d3.selectAll(".node")
+                .each(function (d) { 
+                    //Create D3 selection
+                    let item = d3.select(this);
+                    bboxPos = d3.select(this).attr("transform");
+                    item.style("stroke", "");
+
+                    //Proper substring
+                    if (d.data.name.toLowerCase().indexOf(substr.toLowerCase()) != -1) {
+                        //Grab bounding box
+                        d.bbox = this.getBBox();
+
+                        //Prepend a colored rect
+                        //item.style("stroke", "#000000");
+                        item.classed("hilitebold", true);
+                        item.insert("rect", ".phylotree-node-text")
+                            .attr("x", d.bbox.x - 4)
+                            .attr("y", d.bbox.y - 2)
+                            .attr("width", d.bbox.width + 4)
+                            .attr("height", d.bbox.height + 2)
+                            .attr("fill", "yellow")
+                            .attr("stroke", "yellow")
+                            .classed("hilite", true)
+                            .style("opacity", 0.6);
+                    }
+
+                });
+        }
+
+        //Zoom to first matching taxa
+        function zoomTaxa() {
+            // Handle highlights
+            highlightTaxa();
+
+            // Get all the nodes within the .phylotree-container
+            const nodes = d3.selectAll(".phylotree-container .node");
+
+            //Grab substring of interest
+            let substr = document.getElementById('querystring').value;
+
+            if (substr.trim() == "") {
+                return;
+            }
+
+            // Iterate through each node to find the first match
+            nodes.each(function (d) {
+                if (d.data.name.toLowerCase().includes(substr.toLowerCase())) {                    // Found a match, zoom to the node
+                    const container = d3.select(".phylotree-container");
+                    let width = container.node().getBoundingClientRect().width;
+                    let height = container.node().getBoundingClientRect().height;
+                    const zoomTransform = d3.zoomIdentity
+                        .translate(d.x - (width * 0.5), d.y - (height * 0.5))
+                        .scale(2.0);
+                    console.log(d);
+                    container.transition()
+                        .duration(200)
+                        .call(zoom.transform, zoomTransform);
+
+                    // Exit the loop after the first match is found
+                    return false;
+                }
+            });
+        }
+
+        //Alter which trees are loaded
+        function openTree(evt, treeName) {
+            var i, tabcontent, tablinks;
+
+            // Get all elements with class="tablinks" and remove the class "active"
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+
+            // Switch tree displayed based on click, append active class
+            console.log(treeName)
+            if (treeName == "PRRSV1") { buildTree("tree/prrsv1.nwk"); }
+            if (treeName == "PRRSV2") { buildTree("tree/prrsv2.nwk"); }
+            evt.currentTarget.className += " active";
+        }
+
+        //get tree data
+        function buildTree(treePath) {
+            d3.text(treePath).then(function (newick) {
+                updateTree(newick);
+                //applyAnnotation(cluster);
+            });
+        }
+
+        //Add tree based on recently added sequences to the page
+        function updateTree(treeData) {
+            const regex = /(?<date>\d{4}-\d{2}-\d{2})/;
+            var oldest = null;
+            var unique_compartments = {};
+
+            var height = 800, width = 900;
+            var tree = new phylotree.phylotree(treeData);
+
+            // get classes using a set
+            clades = new Set(); //semi-global
+            let tips = tree.getTips();
+            for (let i = 0; i < tips.length; i++) {
+                clade = tips[i].data.name.split("-");
+                if (clade.length > 1) {
+                    clades.add(clade[0])
+                };
+            }
+
+            // convert to array
+            clades = [...clades].sort();
+
+            //Set up color scale
+            color_scale = d3.scaleSequential(d3.interpolateRainbow).domain([1, clades.length + 1]);
+
+            //Check if tip alignmenti s desired
+            let alignTips = document.getElementById('tips').checked;
+
+            // render the tree
+            rendered_tree = tree.render({
+                height: height,
+                width: width,
+                'left-right-spacing': 'fit-to-size',
+                'top-bottom-spacing': 'fit-to-size',
+                container: "#tree_display",
+                'draw-size-bubbles': false,
+                'node-styler': colorNodesByName,
+                'edge-styler': colorEdgesByTarget,
+                'show-scale': false,
+                'selectable': false,
+                'brush':false,
+                'zoom': false,
+                'align-tips': alignTips
+            });
+
+            //Midpoint root the tree
+            $(rendered_tree.container).html(rendered_tree.show());
+            //let mid = phylotree.computeMidpoint(tree);
+            //tree.reroot(mid.location);
+
+            //Sort ascending
+            tree.resortChildren(function (a, b) { return (b.height - a.height || b.value - a.value) * (true ? 1 : -1); });
+
+            //Remap text clicks
+            let container = d3.select("#tree_display");
+            let labels = container.selectAll("text");
+            labels = labels
+                .on("click", null);
+
+            //Add popups
+            labels = labels
+                .on("mouseover", editMenu)
+                .on("mouseleave", function () { $("#d3_layout_info").hide() });
+
+            //Update legend
+            createLegend();
+
+            //Assign listener/search
+            d3.select('svg')
+                .call(zoom);
+        }
+
+        //Handle zooming & panning
+        function handleZoom(e) {
+            d3.select(".phylotree-container")
+                .attr('transform', e.transform);
+        }
+
+        function zoomIn() {
+            d3.select('.phylotree-container')
+                .transition()
+                .call(zoom.scaleBy, 2);
+        }
+
+        function zoomOut() {
+            d3.select('.phylotree-container')
+                .transition()
+                .call(zoom.scaleBy, 0.5);
+        }
+
+        function resetZoom() {
+            d3.select('.phylotree-container')
+                .transition()
+                .call(zoom.transform, d3.zoomIdentity);
+                //.call(zoom.translateTo, 800 / 2, 900 / 2)
+                //.call(zoom.scaleTo, 1.0);
+        }
+
+        //Create a hover div object as you go over tree tips
+        function editMenu(d, i) {
+            let d3_layout_phylotree_context_menu_id = "d3_layout_info";
+
+            //Generate contextual menu
+            let menu_object = d3
+                .select("#tree_display")
+                .select("#" + d3_layout_phylotree_context_menu_id);
+
+            if (menu_object.empty()) {
+                menu_object = d3
+                    .select("#tree_display")
+                    .append("div")
+                    .attr("id", d3_layout_phylotree_context_menu_id)
+                    .attr("class", "dropdown-menu phyloinfo")
+                    .attr("role", "menu");
+            }
+
+            //Clear prior items
+            menu_object.selectAll("a").remove();
+            menu_object.selectAll("p").remove();
+            menu_object.selectAll("li").remove();
+
+            //Process text
+            let caseName = i.data.name.split("|");
+
+            //Build details	
+            menu_object.append("li").append("strong").text(caseName[0]);
+            /*menu_object.append("li").text("State: " + caseName[1]);
+            menu_object.append("li").text("Date: " + caseName[2]);
+            menu_object.append("li").text("Lineage: " + caseName[3]);
+            menu_object.append("li").text("RFLP: " + caseName[4]);*/
+
+
+            let tree_container = $("#tree_display"); // eslint-disable-line
+            let coordinates = d3.pointer(tree_container[0]);
+            let yOffset = -30;
+            let xOffset = 10;
+
+            menu_object
+                .style("position", "absolute")
+                .style("left", (d.pageX + xOffset) + "px")
+                .style("top", "" + (d.pageY + yOffset) + "px")
+                .style("display", "block");
+        }
+
+        function createLegend() {
+            // select the svg area
+            d3.select("#compartment-legend > *").remove();  //Clear
+            var svg = d3.select("#compartment-legend").append("svg")
+                .attr("width", 400)
+                .attr("height", 100 + clades.length * 25);
+
+            // Add one dot in the legend for each name.
+            svg.selectAll("dots")
+                .data(clades)
+                .enter()
+                .append("circle")
+                .attr("cx", 10)
+                .attr("cy", function (d, i) { return 50 + i * 25 }) // 500 is where the first dot appears. 25 is the distance between dots
+                .attr("r", 7)
+                .style("fill", function (d, i) { return color_scale(i) });
+
+            // Add one dot in the legend for each name.
+            svg.selectAll("labels")
+                .data(clades)
+                .enter()
+                .append("text")
+                .attr("x", 30)
+                .attr("y", function (d, i) { return 50 + i * 25 }) // 500 is where the first dot appears. 25 is the distance between dots
+                .style("fill", function (d, i) { return color_scale(i) })
+                .text(function (d) { return d })
+                .attr("text-anchor", "left")
+                .style("alignment-baseline", "middle")
+                .style("font-weight", "bold");
+        }
+
+        function colorNodesByName(element, data) {
+            var m = (data.data.name).split("-");
+            if (m.length > 1) {
+                element.style("fill", color_scale(clades.indexOf(m[0])));
+
+                //Vaccine highlights
+                if (data.data.name.toLowerCase().includes("ingelvac") |
+                    data.data.name.toLowerCase().includes("vax") | 
+                    data.data.name.toLowerCase().includes("ref")) {
+                    element.classed("hilitevax", true);
+                    //element.style("stroke", "red");
+                }
+            }
+        };
+
+        function colorEdgesByTarget(element, data) {
+            var m = (data.target.data.name).split("-");
+            if (m.length > 1) {
+                element.style("stroke", color_scale(clades.indexOf(m[0])));
+            }
+            else {
+
+            }
+        };
+
+        //Update time
+        function updateTreeInterval(dateLR) {
+            dateString = new Date(dateLR);
+            // toUTCString date standard shows correct date, whereas toDateString looses 6 hours for CST/CDT due to being behind GMT thus the date is always one less
+            // use UTC or ISO date standards or Locale date string 
+            dateLR = new Date(dateString);
+            dateLR.setUTCHours(5);
+
+            var toDate = new Date();
+            var targetDay = 0;
+
+            toDate.setDate(toDate.getDate() - (targetDay + (7 + toDate.getDay())) % 7);
+            toDate.setHours(0, 0, 0, 0);
+
+            var fromDate = new Date(toDate);
+            fromDate.setDate(toDate.getDate() - 30);
+            document.getElementById("treeTitle").innerHTML = "PRRSView sequences between " + fromDate.toLocaleDateString() + " and " + dateLR.toLocaleDateString();
+        }
+        </script>
+</body>
+</html>
